@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Random Table Finder</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f8f9fa;
+      color: #202122;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 2rem;
+      color: #3366cc;
+      text-align: center;
+    }
+
+    #btn-find {
+      padding: 0.75rem 1.75rem;
+      font-size: 1.1rem;
+      background: #3366cc;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #btn-find:hover:not(:disabled) {
+      background: #2a55b0;
+    }
+
+    #btn-find:disabled {
+      background: #a0b4e0;
+      cursor: not-allowed;
+    }
+
+    #status {
+      margin-top: 1.5rem;
+      font-size: 0.95rem;
+      color: #54595d;
+      min-height: 1.4em;
+      text-align: center;
+    }
+
+    #result {
+      margin-top: 2rem;
+      width: 100%;
+      max-width: 1100px;
+      display: none;
+    }
+
+    #result h2 {
+      font-size: 1.3rem;
+      margin-bottom: 1rem;
+      color: #202122;
+      text-align: center;
+    }
+
+    /* Render the scraped Wikipedia table as closely to the original as possible */
+    #table-container {
+      overflow-x: auto;
+      background: #fff;
+      border: 1px solid #a2a9b1;
+      border-radius: 4px;
+      padding: 1rem;
+    }
+
+    #table-container table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    #table-container th,
+    #table-container td {
+      border: 1px solid #a2a9b1;
+      padding: 0.35rem 0.6rem;
+      vertical-align: top;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    #table-container th {
+      background: #eaecf0;
+      font-weight: bold;
+    }
+
+    #table-container tr:nth-child(even) td {
+      background: #f8f9fa;
+    }
+
+    #table-container caption {
+      caption-side: top;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+    }
+
+    /* Strip images, keep text content */
+    #table-container img { display: none; }
+
+    #source-link {
+      display: block;
+      margin-top: 1rem;
+      text-align: center;
+      font-size: 0.95rem;
+      color: #3366cc;
+    }
+
+    #source-link:hover {
+      text-decoration: underline;
+    }
+
+    #btn-again {
+      display: none;
+      margin-top: 1.5rem;
+      padding: 0.6rem 1.4rem;
+      font-size: 1rem;
+      background: #fff;
+      color: #3366cc;
+      border: 2px solid #3366cc;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    #btn-again:hover {
+      background: #3366cc;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Random Table Finder</h1>
+
+  <button id="btn-find">Find me a wikipedia table</button>
+  <p id="status"></p>
+
+  <div id="result">
+    <div id="table-container"></div>
+    <a id="source-link" href="#" target="_blank" rel="noopener noreferrer"></a>
+  </div>
+
+  <button id="btn-again">Find another table</button>
+
+  <script>
+    const btnFind  = document.getElementById('btn-find');
+    const btnAgain = document.getElementById('btn-again');
+    const status   = document.getElementById('status');
+    const result   = document.getElementById('result');
+    const tableContainer = document.getElementById('table-container');
+    const sourceLink     = document.getElementById('source-link');
+
+    const MAX_RETRIES = 10;
+
+    btnFind.addEventListener('click', findTable);
+    btnAgain.addEventListener('click', findTable);
+
+    async function findTable() {
+      setLoading(true);
+
+      try {
+        let tables = [];
+        let randomTitle = '';
+        let attempts = 0;
+
+        // Retry until we find a page that contains at least one table,
+        // up to MAX_RETRIES attempts to avoid unbounded recursion.
+        while (tables.length === 0 && attempts < MAX_RETRIES) {
+          attempts++;
+
+          // Step 1 – get a random Wikipedia article title via the MediaWiki API.
+          // This is what wikiroulette (https://wikiroulette.co/) does under the hood.
+          randomTitle = await fetchRandomTitle();
+          setStatus(`Fetching page: "${randomTitle}" …`);
+
+          // Step 2 – fetch the parsed HTML of the article.
+          const html = await fetchPageHTML(randomTitle);
+
+          // Step 3 – extract tables from the HTML.
+          tables = extractTables(html);
+
+          if (tables.length === 0) {
+        setStatus('No tables found on that page, trying another (Wikipedia)…');
+          }
+        }
+
+        if (tables.length === 0) {
+          throw new Error('Could not find a Wikipedia page with tables after several attempts.');
+        }
+
+        // Step 4 – pick a random table and display it.
+        const chosen = tables[Math.floor(Math.random() * tables.length)];
+        tableContainer.innerHTML = '';
+        tableContainer.appendChild(chosen);
+
+        const pageUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(randomTitle.replace(/ /g, '_'))}`;
+        sourceLink.href = pageUrl;
+        sourceLink.textContent = `Source: Wikipedia – ${randomTitle}`;
+
+        result.style.display = 'block';
+        btnAgain.style.display = 'inline-block';
+        setStatus('');
+      } catch (err) {
+        setStatus(`Error: ${err.message}. Please try again.`);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function fetchRandomTitle() {
+      const url = 'https://en.wikipedia.org/w/api.php?action=query&list=random&rnnamespace=0&rnlimit=1&format=json&origin=*';
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Wikipedia API error (${res.status})`);
+      const data = await res.json();
+      return data.query.random[0].title;
+    }
+
+    async function fetchPageHTML(title) {
+      const url = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=text&format=json&origin=*`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Wikipedia API error (${res.status})`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.info);
+      return data.parse.text['*'];
+    }
+
+    function extractTables(htmlString) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlString, 'text/html');
+
+      // Remove hidden elements and navigation/info-box-only tables if desired.
+      // We keep all <table> elements with visible content.
+      const allTables = Array.from(doc.querySelectorAll('table'));
+
+      // Filter to tables that actually have data rows (skip empty/layout tables).
+      const dataTables = allTables.filter(t => t.querySelectorAll('tr').length > 1);
+
+      // Clean each table: strip scripts, strip absolute Wikipedia-internal links
+      // and make them relative so nothing inside the result is clickable in a
+      // confusing way (links still work via the source link at the bottom).
+      return dataTables.map(t => {
+        // Remove script/style nodes
+        t.querySelectorAll('script, style').forEach(n => n.remove());
+
+        // Fix relative links so they don't try to navigate the parent page
+        t.querySelectorAll('a[href]').forEach(a => {
+          const href = a.getAttribute('href');
+          if (href && href.startsWith('/wiki/')) {
+            a.setAttribute('href', `https://en.wikipedia.org${href}`);
+            a.setAttribute('target', '_blank');
+            a.setAttribute('rel', 'noopener noreferrer');
+          }
+        });
+
+        // Fix image src paths (though images are hidden via CSS)
+        t.querySelectorAll('img[src]').forEach(img => {
+          const src = img.getAttribute('src');
+          if (src && src.startsWith('//')) {
+            img.setAttribute('src', `https:${src}`);
+          }
+        });
+
+        return t;
+      });
+    }
+
+    function setLoading(loading) {
+      btnFind.disabled  = loading;
+      btnAgain.disabled = loading;
+      if (loading) setStatus('Loading…');
+    }
+
+    function setStatus(msg) {
+      status.textContent = msg;
+    }
+  </script>
+
+</body>
+</html>
