@@ -34,9 +34,9 @@ These counts are micro-aggregated across all examples, then converted to precisi
 
 Relaxed scores are always **≥** exact scores, because every exact match is also a relaxed match. The gap between the two scores directly measures how often a model identifies the correct entity type but gets the span boundaries wrong — which is the most common failure mode for the boundary-ambiguity examples in this notebook.
 
-## Random Table Finder (`index.html`)
+## Random Table Finder (`random-table-finder.html`)
 
-`index.html` is a self-contained, single-page web application that fetches and displays a random table from Wikipedia.
+`random-table-finder.html` is a self-contained, single-page web application that fetches and displays a random table from Wikipedia.
 
 ### How it works
 
@@ -51,4 +51,4 @@ Relaxed scores are always **≥** exact scores, because every exact match is als
 - Clicking *"Find another table"* repeats the entire process and replaces the currently displayed table.
 - Links inside the rendered table are rewritten to absolute Wikipedia URLs and opened in a new tab.
 - Images within the table are hidden via CSS to keep the display clean.
-- The page requires no build step or external dependencies — open `index.html` directly in any modern browser.
+- The page requires no build step or external dependencies — open `random-table-finder.html` directly in any modern browser.
